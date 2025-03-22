@@ -15,7 +15,7 @@ import numpy as np
 from transformers import AutoConfig, GPT2LMHeadModel
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader 
+from torch.utils.data import DataLoader
 import torch.distributed as dist
 from torch.multiprocessing import Process
 
@@ -27,13 +27,17 @@ PYTEST = False
 # ASSIGNMENT 4.1
 def average_gradients(model):
     '''Aggregate the gradients from different GPUs
-    
-    1. Iterate through the parameters of the model 
+
+    1. Iterate through the parameters of the model
     2. Use `torch.distributed` package and call the reduce fucntion to aggregate the gradients of all the parameters
     3. Average the gradients over the world_size (total number of devices)
     '''
     # BEGIN SOLUTION
-    raise NotImplementedError("Data Parallel Not Implemented Yet")
+    world_size = dist.get_world_size()
+    for param in model.parameters():
+        if param.grad is not None:
+            dist.all_reduce(param.grad, op=dist.ReduceOp.SUM)
+            param.grad /= world_size
     # END SOLUTION
 
 # ASSIGNMENT 4.1
@@ -44,7 +48,9 @@ def setup(rank, world_size, backend):
     2. Use `torch.distributed` to init the process group
     '''
     # BEGIN SOLUTION
-    raise NotImplementedError("Data Parallel Not Implemented Yet")
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_PORT'] = '11868'
+    dist.init_process_group(backend=backend, rank=rank, world_size=world_size)
     # END SOLUTION
 
 
@@ -60,12 +66,12 @@ def run_dp(
 
     config = AutoConfig.from_pretrained('gpt2')
     config.save_pretrained(workdir)
-    
+
     ### Distributed Training Setup
     setup(rank, world_size, backend)
-    
+
     model = GPT2LMHeadModel(config=config).to(rank)
-    
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
     dataset = {
@@ -94,7 +100,7 @@ def run_dp(
         tokenizer=tokenizer,
         model_max_length=model_max_length,
         device=rank)
-    
+
     ### Get Partition of the Training Dataset on Device {rank}
     train_loader = partition_dataset(rank, world_size, dataset['train'], batch_size=batch_size, collate_fn=collate_fn)
 
@@ -191,8 +197,27 @@ if __name__ == '__main__':
     2. You should start the processes to work and terminate resources properly
     '''
     # BEGIN SOLUTION
-    world_size = None  # TODO: Define the number of GPUs
-    backend = None  # TODO: Define your backend for communication, we suggest using 'nccl'
-    
-    raise NotImplementedError("Data Parallel Not Implemented Yet")
+    world_size = args.world_size  # TODO: Define the number of GPUs
+    backend = 'nccl'  # TODO: Define your backend for communication, we suggest using 'nccl'
+
+    for rank in range(world_size):
+        p = Process(
+            target=run_dp,
+            args=(
+                rank,
+                world_size,
+                backend,
+                args.dataset,
+                args.model_max_length,
+                args.n_epochs,
+                args.batch_size,
+                args.learning_rate
+            )
+        )
+        p.start()
+        processes.append(p)
+
+    for p in processes:
+        p.join()
+
     # END SOLUTION
