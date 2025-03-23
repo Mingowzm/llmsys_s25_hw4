@@ -33,11 +33,10 @@ def average_gradients(model):
     3. Average the gradients over the world_size (total number of devices)
     '''
     # BEGIN SOLUTION
-    world_size = dist.get_world_size()
     for param in model.parameters():
         if param.grad is not None:
             dist.all_reduce(param.grad, op=dist.ReduceOp.SUM)
-            param.grad /= world_size
+            param.grad = param.grad / dist.get_world_size()
     # END SOLUTION
 
 # ASSIGNMENT 4.1
