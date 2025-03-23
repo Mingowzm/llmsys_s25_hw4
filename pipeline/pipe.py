@@ -12,7 +12,7 @@ def _clock_cycles(num_batches: int, num_partitions: int) -> Iterable[List[Tuple[
     '''Generate schedules for each clock cycle.
 
     An example of the generated schedule for m=3 and n=3 is as follows:
-    
+
     k (i,j) (i,j) (i,j)
     - ----- ----- -----
     0 (0,0)
@@ -27,7 +27,15 @@ def _clock_cycles(num_batches: int, num_partitions: int) -> Iterable[List[Tuple[
     This function should yield schedules for each clock cycle.
     '''
     # BEGIN SOLUTION
-    raise NotImplementedError("Schedule Generation Not Implemented Yet")
+    total_clock_cycles = num_batches + num_partitions - 1
+
+    for clock in range(total_clock_cycles):
+        current_step = [
+            (microbatch_id, stage_id)
+            for microbatch_id in range(num_batches)
+            if 0 <= (stage_id := clock - microbatch_id) < num_partitions
+        ]
+        yield current_step
     # END SOLUTION
 
 class Pipe(nn.Module):
@@ -51,7 +59,7 @@ class Pipe(nn.Module):
         2. Generate the clock schedule.
         3. Call self.compute to compute the micro-batches in parallel.
         4. Concatenate the micro-batches to form the mini-batch and return it.
-        
+
         Please note that you should put the result on the last device. Putting the result on the same device as input x will lead to pipeline parallel training failing.
         '''
         # BEGIN SOLUTION
@@ -64,7 +72,7 @@ class Pipe(nn.Module):
 
         Hint:
         1. Retrieve the partition and microbatch from the schedule.
-        2. Use Task to send the computation to a worker. 
+        2. Use Task to send the computation to a worker.
         3. Use the in_queues and out_queues to send and receive tasks.
         4. Store the result back to the batches.
         '''

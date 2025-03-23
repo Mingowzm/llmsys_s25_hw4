@@ -46,8 +46,8 @@ def _split_module(modules: nn.Sequential) -> Tuple[List[nn.Sequential], List[tor
 
     Each partition is a nn.Sequential module attached to the same device.
     The partitions and devices are returned as a tuple. Each partition corresponds to a device in the devices list.
-    
-    Hint: 
+
+    Hint:
     1. You can use the _retrieve_device function to retrieve the device of a module.
     2. However, users might use the WithDevice class to wrap a module with a device. In this case, you should use the device from the WithDevice class.
     3. You can use the _assemble_partition function to assemble a partition from a list of modules.
@@ -59,7 +59,23 @@ def _split_module(modules: nn.Sequential) -> Tuple[List[nn.Sequential], List[tor
     current_device = None
     for name, module in modules.named_children():
         # BEGIN SOLUTION
-        raise NotImplementedError("Module Splitting Not Implemented Yet")
+        if isinstance(module, WithDevice):
+            device = module.device
+            inner_module = module.module
+        else:
+            device = _retrieve_device(module)
+            inner_module = module
+
+        if current_device is None:
+            current_device = device
+            current_partition.append(inner_module)
+        elif device == current_device:
+            current_partition.append(inner_module)
+        else:
+            partitions.append(_assemble_partition(current_partition))
+            devices.append(current_device)
+            current_partition = [inner_module]
+            current_device = device
         # END SOLUTION
 
     if current_device is not None:
