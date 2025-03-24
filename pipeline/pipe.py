@@ -63,7 +63,29 @@ class Pipe(nn.Module):
         Please note that you should put the result on the last device. Putting the result on the same device as input x will lead to pipeline parallel training failing.
         '''
         # BEGIN SOLUTION
-        raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
+        # Step 1
+        microbatches = torch.chunk(x, self.split_size)
+        num_microbatches = len(microbatches)
+        num_stages = len(self.partitions)
+
+        # Step 2
+        pipeline_buffer = []
+        for batch_idx in range(num_microbatches):
+            stage_data = [None] * num_stages
+            stage_data[0] = microbatches[batch_idx].to(self.devices[0])
+            pipeline_buffer.append(stage_data)
+
+        # Step 3
+        execution_schedule = list(_clock_cycles(num_microbatches, num_stages))
+        self.compute(pipeline_buffer, execution_schedule)
+
+        # Step 4
+        outputs = []
+        for batch in pipeline_buffer:
+            output = batch[-1].to(self.devices[-1])
+            outputs.append(output)
+
+        return torch.cat(outputs)
         # END SOLUTION
 
     # ASSIGNMENT 4.2
@@ -78,8 +100,39 @@ class Pipe(nn.Module):
         '''
         partitions = self.partitions
         devices = self.devices
+        in_queues = self.in_queues
+        out_queues = self.out_queues
 
         # BEGIN SOLUTION
-        raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
+        for cycle in schedule:
+            for microbatch_id, stage_id in cycle:
+                device = devices[stage_id]
+                partition = partitions[stage_id]
+                in_queue = in_queues[stage_id]
+                out_queue = out_queues[stage_id]
+
+                if stage_id > 0:
+                    input_tensor = batches[microbatch_id][stage_id - 1]
+                else:
+                    input_tensor = batches[microbatch_id][0]
+
+                def compute_stage_output(input_tensor, partition_module, device):
+                    def run():
+                        return partition_module(input_tensor.to(device))
+                    return run
+
+                task_fn = compute_stage_output(input_tensor, partition, device)
+                task = Task(task_fn)
+                in_queue.put(task)
+
+            for microbatch_id, stage_id in cycle:
+                out_queue = out_queues[stage_id]
+                success, result = out_queue.get()
+
+                if not success:
+                    raise result[1].with_traceback(result[2])
+
+                task, batch = result
+                batches[microbatch_id][stage_id] = batch
         # END SOLUTION
 
