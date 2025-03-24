@@ -64,7 +64,7 @@ class Pipe(nn.Module):
         '''
         # BEGIN SOLUTION
         # Step 1
-        microbatches = torch.chunk(x, self.split_size)
+        microbatches = list(torch.chunk(x, self.split_size, dim=0))
         num_microbatches = len(microbatches)
         num_stages = len(self.partitions)
 
@@ -118,7 +118,13 @@ class Pipe(nn.Module):
 
                 def compute_stage_output(input_tensor, partition_module, device):
                     def run():
-                        return partition_module(input_tensor.to(device))
+                        if isinstance(input_tensor, tuple):
+                            input_tensor_device = input_tensor[0].to(device)
+                        else:
+                            input_tensor_device = input_tensor.to(device)
+
+                        return partition_module(input_tensor_device)
+
                     return run
 
                 task_fn = compute_stage_output(input_tensor, partition, device)

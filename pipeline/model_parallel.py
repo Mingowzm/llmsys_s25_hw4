@@ -18,7 +18,7 @@ from .model import GPT2ModelCustom, GPT2LMHeadModelCustom
 class ExtractFirstItem(nn.Module):
     def __init__(self):
         super(ExtractFirstItem, self).__init__()
-    
+
     def forward(self, x):
         return x[0]
 
@@ -36,13 +36,27 @@ class GPT2ModelParallel(GPT2ModelCustom):
         2. Construct an nn.Sequential module for the transformer layers (self.h).
         3. Use Pipe to parallelize the transformer layers.
 
-        Please note that when implementing _prepare_pipeline_parallel, you would want to define the nn.Sequential module to extract useful values from the returned tuple. GPT2Block returns a tuple, not a tensor. 
+        Please note that when implementing _prepare_pipeline_parallel, you would want to define the nn.Sequential module to extract useful values from the returned tuple. GPT2Block returns a tuple, not a tensor.
         You should construct nn.Sequential using GPT2Block modules. Notice that each block returns multiple values but you will only need the hidden states.
         '''
 
         # BEGIN SOLUTION
         pipe = None
-        raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
+
+        # Step 1
+        self.pipeline_parallel = True
+
+        # Step 2
+        layers = []
+        for block in self.h:
+            group = nn.Sequential(block, ExtractFirstItem())
+            layers.append(group)
+
+        sequential = nn.Sequential(*layers)
+
+        # Step 3
+        pipe = Pipe(sequential, split_size=split_size)
+
         # END SOLUTION
         self.h_pp = pipe
 
